@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WSN Clustering Algorithm using VSPGT</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            font-size: 24px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        #container {
+            display: flex;
+            justify-content: space-between;
+            margin: 40px 10%;
+        }
+        #graph {
+            width: 60%;
+            height: 700px;
+            background: url('https://www.transparenttextures.com/patterns/green-cup.png');
+            border: 1px solid #aaa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        #details {
+            width: 35%;
+            height: 700px;
+            overflow-y: auto;
+            border: 1px solid #aaa;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #fff;
+        }
+        #controls {
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        #controls button {
+            padding: 12px 25px;
+            margin: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: "Times New Roman", Times, serif;
+        }
+        #start-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #stop-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        #restart-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #333;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #e0e0e0;
+        }
+        .description {
+            margin: 40px 10%;
+            text-align: left;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #aaa;
+            border-radius: 10px;
+        }
+        .placeholder {
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <h1>WSN Clustering Algorithm using VSPGT</h1>
+    <div id="controls">
+        <button id="start-btn" onclick="startClustering()">Start Clustering</button>
+        <button id="stop-btn" onclick="stopClustering()">Stop Clustering</button>
+        <button id="restart-btn" onclick="restartClustering()">Restart Clustering</button>
+    </div>
+    <div id="container">
+        <div id="graph" class="placeholder">Graph will be displayed here.</div>
+        <div id="details">
+            <h2>Cluster Heads and Energy Levels</h2>
+            <div id="cluster-heads" class="placeholder">Cluster heads and members will be displayed here.</div>
+        </div>
+    </div>
+    <div class="description">
+        <h3>Description</h3>
+        <p><strong>Very Strong Perfect Graph:</strong> A type of graph where every induced subgraph has an optimal coloring that equals its clique number. For more details, refer to <a href="https://iaeme.com/MasterAdmin/Journal_uploads/IJMET/VOLUME_11_ISSUE_1/IJMET_11_01_005.pdf" target="_blank">this paper</a>.</p>
+        <p><strong>Cluster Head Selection:</strong> Cluster heads are selected based on a combination of their energy levels and their membership in strong independent sets derived from maximal cliques. The nodes with the highest energy levels from these sets are chosen as cluster heads, with a maximum of 3 cluster heads at any given time.</p>
+        <p><strong>Follower Node Assignment:</strong> Each follower node is assigned to the nearest cluster head based on the shortest path. Nodes that are not cluster heads and have positive energy are considered as followers.</p>
+        <p><strong>Time Complexity:</strong> The time complexity of finding maximal cliques in a graph is generally exponential, O(3^(n/3)). However, once the cliques are found, the selection of cluster heads and forming clusters are polynomial operations.</p>
+        <p><strong>Why VSPGT in WSN:</strong> In WSNs, optimal resource usage and efficient communication are crucial. VSPGT ensures optimal coloring, minimizing the number of communication rounds and energy consumption. It helps in creating an efficient clustering mechanism by leveraging the graph properties for optimal cluster head selection and energy management.</p>
+    </div>
+
+    <script>
+        let interval;
+        let clusteringActive = false;
+
+        function fetchGraphData() {
+            fetch('/graph')
+                .then(response => response.json())
+                .then(data => {
+                    plotGraph(data);
+                });
+        }
+
+        function plotGraph(data) {
+            const nodes = data.nodes.map((node, index) => {
+                return {
+                    x: node.pos[0],
+                    y: node.pos[1],
+                    z: Math.random(),  // Adding random z-coordinate for 3D effect
+                    text: `Node ${node.id} (Energy: ${node.energy.toFixed(2)})`,
+                    marker: {
+                        size: 3 + 4 * node.energy / 100,
+                        symbol: data.cluster_heads.includes(node.id) ? 'star' : 'circle',
+                        color: data.cluster_heads.includes(node.id) ? 'green' : 'blue'
+                    }
+                };
+            });
+
+            const edges = data.edges.map(edge => ({
+                x: [nodes.find(node => node.text.includes(`Node ${edge.source}`)).x, nodes.find(node => node.text.includes(`Node ${edge.target}`)).x],
+                y: [nodes.find(node => node.text.includes(`Node ${edge.source}`)).y, nodes.find(node => node.text.includes(`Node ${edge.target}`)).y],
+                z: [nodes.find(node => node.text.includes(`Node ${edge.source}`)).z, nodes.find(node => node.text.includes(`Node ${edge.target}`)).z],
+                type: 'scatter3d',
+                mode: 'lines',
+                line: { color: 'grey' }
+            }));
+
+            Plotly.newPlot('graph', [
+                ...nodes.map(node => ({
+                    type: 'scatter3d',
+                    mode: 'markers',
+                    x: [node.x],
+                    y: [node.y],
+                    z: [node.z],
+                    text: [node.text],
+                    marker: node.marker
+                })),
+                ...edges
+            ], {
+                margin: { t: 0 },
+                scene: {
+                    xaxis: { title: 'X Axis' },
+                    yaxis: { title: 'Y Axis' },
+                    zaxis: { title: 'Z Axis' }
+                }
+            });
+
+            document.getElementById('cluster-heads').innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cluster Head</th>
+                            <th>Members</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.cluster_heads.map(head => `
+                            <tr>
+                                <td>${head}</td>
+                                <td>${data.clusters[head].join(', ')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function startClustering() {
+            if (!clusteringActive) {
+                clusteringActive = true;
+                interval = setInterval(() => {
+                    fetch('/clustering_process')
+                        .then(response => response.json())
+                        .then(data => {
+                            plotGraph(data);
+                        });
+                }, 10000);  // 10 seconds interval
+                // Clear placeholders
+                document.getElementById('graph').classList.remove('placeholder');
+                document.getElementById('graph').innerHTML = '';
+                document.getElementById('cluster-heads').classList.remove('placeholder');
+                document.getElementById('cluster-heads').innerHTML = '';
+            }
+        }
+
+        function stopClustering() {
+            clusteringActive = false;
+            clearInterval(interval);
+        }
+
+        function restartClustering() {
+            stopClustering();
+            fetch('/graph').then(() => {
+                startClustering();
+            });
+        }
+
+        window.onload = fetchGraphData;
+    </script>
+</body>
+</html>
